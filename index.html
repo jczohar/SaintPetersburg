@@ -1438,9 +1438,10 @@ function popupHtml(it) {
 let MAIN = { map: null, layers: {}, route: null, me: null, on: { sites: 1, hotels: 1, restaurants: 1, metro: 0, markets: 1, shops: 1 }, google: false, sel: null };
 function renderMapTab() {
   return '<div class="bar"><button class="btn gold" data-act="pickmap" style="flex:1;justify-content:center;font-size:16px">📍 בחר מקום במפה</button></div>' +
+    '<div class="bar"><button class="btn sm alt" data-act="home">🏙️ חזרה לעיר</button><button class="btn sm alt" data-act="myloc">📡 המיקום שלי</button><button class="btn sm alt" data-act="gmode">🌐 תצוגת מפות גוגל</button><button class="btn sm alt" data-act="tilesw">🔁 סגנון מפה</button><button class="btn sm ghost" data-act="clearroute">נקה מסלול</button></div>' +
+    '<div class="chips">' + ['sites', 'hotels', 'restaurants', 'metro', 'markets', 'shops'].map(k => '<button class="cp ' + (MAIN.on[k] ? 'on' : '') + '" data-act="layer" data-k="' + k + '">' + (TYPE_ICON[k] || '🚇') + ' ' + TYPE_NAME[k] + '</button>').join('') + '</div>' +
+    '<div id="routeinfo"></div>' +
     '<div class="mapbox" id="mapbox"><button class="btn sm fsx" data-act="fs" data-b="mapbox">⛶ מסך מלא</button><div class="map" id="map"></div><iframe id="gframe" class="hide" style="width:100%;height:56vh;border:0" loading="lazy"></iframe><a id="glink" class="btn sm gold hide" target="_blank" rel="noopener" style="position:absolute;bottom:8px;right:8px;z-index:1000" href="https://www.google.com/maps/search/?api=1&query=59.9343,30.3351">פתח במפות גוגל (אם המפה לא נטענת)</a></div>' +
-    '<div class="bar"><button class="btn sm alt" data-act="gmode">🌐 תצוגת מפות גוגל</button><button class="btn sm alt" data-act="myloc">📡 המיקום שלי</button><button class="btn sm alt" data-act="tilesw">🔁 החלף סגנון מפה</button><button class="btn sm ghost" data-act="clearroute">נקה מסלול</button></div>' +
-    '<div id="routeinfo"></div><div class="chips">' + ['sites', 'hotels', 'restaurants', 'metro', 'markets', 'shops'].map(k => '<button class="cp ' + (MAIN.on[k] ? 'on' : '') + '" data-act="layer" data-k="' + k + '">' + (TYPE_ICON[k] || '🚇') + ' ' + TYPE_NAME[k] + '</button>').join('') + '</div>' +
     '<p class="sub">לחץ על סמן במפה לפרטים ולמסלול הגעה. המפה מציגה רק מקומות שלא הסתרת.</p>';
 }
 function initMainMap() {
@@ -1892,6 +1893,7 @@ document.addEventListener('click', e => {
     case 'pickmap': pickPlace(p => focusPlace(p.id), { title: 'בחר מקום במפה', cats: ['sites', 'hotels', 'restaurants', 'metro', 'markets', 'shops'] }); break;
     case 'fs': toggleFs(a.dataset.b); break;
     case 'gmode': { MAIN.google = !MAIN.google; $('#map').classList.toggle('hide', MAIN.google); $('#gframe').classList.toggle('hide', !MAIN.google); $('#glink').classList.toggle('hide', !MAIN.google); a.textContent = MAIN.google ? '🗺️ חזרה למפה שלנו' : '🌐 תצוגת מפות גוגל'; if (MAIN.google) { const p = MAIN.sel ? findPlace(MAIN.sel) : null, c = p ? { lat: p.ll[0], lng: p.ll[1] } : MAIN.map.getCenter(); $('#gframe').src = 'https://maps.google.com/maps?hl=he&q=' + c.lat + ',' + c.lng + '&z=15&output=embed'; $('#glink').href = 'https://www.google.com/maps/search/?api=1&query=' + c.lat + ',' + c.lng; } break; }
+    case 'home': { if (MAIN.google) { const g = $('[data-act=gmode]'); if (g) g.click(); } if (MAIN.map) { MAIN.sel = null; S.last.mv = null; MAIN.map.closePopup(); MAIN.map.setView([CITY.lat, CITY.lng], 13); } break; }
     case 'tilesw': S.settings.tp = ((S.settings.tp || 0) + 1) % TILE_P.length; save(); render(true); toast('הוחלף סגנון המפה'); break;
     case 'myloc': getPos(p => { if (MAIN.me) MAIN.map.removeLayer(MAIN.me); MAIN.me = L.circleMarker(p, { radius: 8, color: '#1c6dd0', fillOpacity: .9 }).addTo(MAIN.map).bindTooltip('אני כאן'); MAIN.map.setView(p, 15); }); break;
     case 'clearroute': if (MAIN.route && MAIN.map) { MAIN.map.removeLayer(MAIN.route); MAIN.route = null; } { const ri = $('#routeinfo'); if (ri) ri.innerHTML = ''; } break;
