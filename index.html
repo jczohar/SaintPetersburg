@@ -1418,7 +1418,17 @@ function pickPlace(cb, opts) {
 /* ---------- מפה ---------- */
 let MAPS = [];
 function killMaps() { MAPS.forEach(m => { try { m.remove(); } catch (e) { } }); MAPS = []; }
-function tileLayer() { return L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap © CARTO' }); }
+const TILE_P = [
+  ['https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, referrerPolicy: 'origin', attribution: '© OpenStreetMap' }],
+  ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', { maxZoom: 19, attribution: 'Tiles © Esri' }],
+  ['https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19, subdomains: 'abcd', attribution: '© OpenStreetMap © CARTO' }]
+];
+function tileLayer() {
+  const i = (S.settings.tp || 0) % TILE_P.length, l = L.tileLayer(TILE_P[i][0], TILE_P[i][1]);
+  l.on('tileload', () => { l._ok = 1; });
+  l.on('tileerror', () => { if (l._ok) return; l._err = (l._err || 0) + 1; if (l._err === 4 && l._map) { const m = l._map; m.removeLayer(l); S.settings.tp = (i + 1) % TILE_P.length; save(); tileLayer().addTo(m); toast('המפה לא נטענה, מנסה מקור מפה אחר…'); } });
+  return l;
+}
 function mkIcon(emoji, color, cls) { return L.divIcon({ className: '', html: '<div class="mk ' + (cls || '') + '" style="background:' + color + '"><span>' + emoji + '</span></div>', iconSize: [30, 30], iconAnchor: [15, 30], popupAnchor: [0, -28] }); }
 function popupHtml(it) {
   const t = it.type === 'metro' ? null : it;
@@ -1429,7 +1439,7 @@ let MAIN = { map: null, layers: {}, route: null, me: null, on: { sites: 1, hotel
 function renderMapTab() {
   return '<div class="bar"><button class="btn gold" data-act="pickmap" style="flex:1;justify-content:center;font-size:16px">📍 בחר מקום במפה</button></div>' +
     '<div class="mapbox" id="mapbox"><button class="btn sm fsx" data-act="fs" data-b="mapbox">⛶ מסך מלא</button><div class="map" id="map"></div><iframe id="gframe" class="hide" style="width:100%;height:56vh;border:0" loading="lazy"></iframe><a id="glink" class="btn sm gold hide" target="_blank" rel="noopener" style="position:absolute;bottom:8px;right:8px;z-index:1000" href="https://www.google.com/maps/search/?api=1&query=59.9343,30.3351">פתח במפות גוגל (אם המפה לא נטענת)</a></div>' +
-    '<div class="bar"><button class="btn sm alt" data-act="gmode">🌐 תצוגת מפות גוגל</button><button class="btn sm alt" data-act="myloc">📡 המיקום שלי</button><button class="btn sm ghost" data-act="clearroute">נקה מסלול</button></div>' +
+    '<div class="bar"><button class="btn sm alt" data-act="gmode">🌐 תצוגת מפות גוגל</button><button class="btn sm alt" data-act="myloc">📡 המיקום שלי</button><button class="btn sm alt" data-act="tilesw">🔁 החלף סגנון מפה</button><button class="btn sm ghost" data-act="clearroute">נקה מסלול</button></div>' +
     '<div id="routeinfo"></div><div class="chips">' + ['sites', 'hotels', 'restaurants', 'metro', 'markets', 'shops'].map(k => '<button class="cp ' + (MAIN.on[k] ? 'on' : '') + '" data-act="layer" data-k="' + k + '">' + (TYPE_ICON[k] || '🚇') + ' ' + TYPE_NAME[k] + '</button>').join('') + '</div>' +
     '<p class="sub">לחץ על סמן במפה לפרטים ולמסלול הגעה. המפה מציגה רק מקומות שלא הסתרת.</p>';
 }
@@ -1882,6 +1892,7 @@ document.addEventListener('click', e => {
     case 'pickmap': pickPlace(p => focusPlace(p.id), { title: 'בחר מקום במפה', cats: ['sites', 'hotels', 'restaurants', 'metro', 'markets', 'shops'] }); break;
     case 'fs': toggleFs(a.dataset.b); break;
     case 'gmode': { MAIN.google = !MAIN.google; $('#map').classList.toggle('hide', MAIN.google); $('#gframe').classList.toggle('hide', !MAIN.google); $('#glink').classList.toggle('hide', !MAIN.google); a.textContent = MAIN.google ? '🗺️ חזרה למפה שלנו' : '🌐 תצוגת מפות גוגל'; if (MAIN.google) { const p = MAIN.sel ? findPlace(MAIN.sel) : null, c = p ? { lat: p.ll[0], lng: p.ll[1] } : MAIN.map.getCenter(); $('#gframe').src = 'https://maps.google.com/maps?hl=he&q=' + c.lat + ',' + c.lng + '&z=15&output=embed'; $('#glink').href = 'https://www.google.com/maps/search/?api=1&query=' + c.lat + ',' + c.lng; } break; }
+    case 'tilesw': S.settings.tp = ((S.settings.tp || 0) + 1) % TILE_P.length; save(); render(true); toast('הוחלף סגנון המפה'); break;
     case 'myloc': getPos(p => { if (MAIN.me) MAIN.map.removeLayer(MAIN.me); MAIN.me = L.circleMarker(p, { radius: 8, color: '#1c6dd0', fillOpacity: .9 }).addTo(MAIN.map).bindTooltip('אני כאן'); MAIN.map.setView(p, 15); }); break;
     case 'clearroute': if (MAIN.route && MAIN.map) { MAIN.map.removeLayer(MAIN.route); MAIN.route = null; } { const ri = $('#routeinfo'); if (ri) ri.innerHTML = ''; } break;
     case 'layer': { const kk = a.dataset.k; MAIN.on[kk] = MAIN.on[kk] ? 0 : 1; a.classList.toggle('on', !!MAIN.on[kk]); drawLayers(); break; }
